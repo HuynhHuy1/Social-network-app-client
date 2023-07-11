@@ -1,10 +1,16 @@
 package com.example.socialnetwork.ui.screen.home
 
+import android.content.Context
+import android.os.Bundle
+import android.util.Log
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
@@ -15,7 +21,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -23,26 +32,32 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import androidx.navigation.NavHostController
+import androidx.navigation.NavOptions
 import com.example.socialnetwork.R
 import com.example.socialnetwork.model.CommentModel
 import com.example.socialnetwork.model.PostModel
+import com.example.socialnetwork.model.UserModel
 import com.example.socialnetwork.ui.component.*
 import com.example.socialnetwork.ui.theme.*
-
-val postModel = PostModel(
-    avatarUserPost = R.drawable.avatar_user_post,
-    avatarUser = R.drawable.avatar_user,
-    name = "Floyd Miles",
-    timeCreate = "10 hours ago",
-    image = R.drawable.image_post,
-    content = "It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using",
-    likeNumber = 2000,
-    commentNumber = 80,
-)
+import com.example.socialnetwork.view_model.HomeViewModel
+import com.example.socialnetwork.view_model.PostDetailViewModel
+import com.squareup.moshi.Moshi
+import convertBase64ToImageBitmap
 
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(
+    viewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    navHostController: NavHostController
+) {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.getPostFriend(context)
+        viewModel.getUser(context)
+    }
+    val listPost by viewModel.listPost.collectAsState()
+    val userModel by viewModel.userModel
+    Log.d("TAG", "HomeScreen: ")
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
@@ -55,96 +70,240 @@ fun HomeScreen() {
             Image(
                 painter = image,
                 contentDescription = null,
-                modifier = Modifier.size(width = 430.dp, height = 140.dp)
+                modifier = Modifier
+                    .size(width = 430.dp, height = 140.dp)
             )
             Spacer(modifier = Modifier.height(20.dp))
         }
-        items(5) {
-            PostScreen(postModel = postModel, avatarUser = R.drawable.avatar_user)
+
+        items(listPost) { item ->
+            PostScreen(
+                postModel = item,
+                avatarUser = if (item.avatarBase64 == null) {
+                    ImageBitmap.imageResource(id = R.drawable.avatar_null)
+                } else {
+                    convertBase64ToImageBitmap(item.avatarBase64)
+                },
+                state = item.stateLike,
+                context = context,
+                postID = item.postId,
+                viewModel= viewModel,
+                navHostController = navHostController,
+                userID = item.userID
+            )
             Spacer(modifier = Modifier.height(15.dp))
         }
     }
 }
 
 @Composable
-fun PostScreen(postModel: PostModel, @DrawableRes avatarUser: Int) {
+fun PostScreen(
+    postModel: PostModel,
+    avatarUser: ImageBitmap?,
+    state: Boolean,
+    context: Context,
+    postID: Int,
+    viewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    navHostController: NavHostController,
+    userID: Int = 0
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White, shape = Shapes.medium)
             .padding(20.dp),
     ) {
-        HeaderPost(image = postModel.avatarUserPost, nameUser = postModel.name)
+        HeaderPost(
+            image = R.drawable.avatar_null,
+            nameUser = postModel.userName!!,
+            timeCreate = postModel.timeFormatString,
+            avatarUser = avatarUser,
+            navHostController = navHostController,
+            userID = userID
+        )
         Spacer(modifier = Modifier.height(20.dp))
         Text(
             text = postModel.content,
-            style = contentStyle,
+            style = subtitleStyle,
             maxLines = 5,
             overflow = TextOverflow.Ellipsis
         )
+
         Spacer(modifier = Modifier.height(20.dp))
-        Text(
-            text = postModel.timeCreate,
-            style = textContentShadowStyle,
-        )
-        Spacer(modifier = Modifier.height(20.dp))
-        val image = painterResource(id = postModel.image)
-        Image(
-            painter = image,
-            contentDescription = null,
-            modifier = Modifier
-                .clip(Shapes.medium)
-                .height(height = 300.dp)
-                .fillMaxWidth(),
-            contentScale = ContentScale.FillBounds
+        var image: ImageBitmap? = postModel.let {
+            it.image?.let { it1 ->
+                postModel.image?.let { it2 -> convertBase64ToImageBitmap(it2) }
+            }
+        }
+        if (image != null) {
+            Image(
+                bitmap = image,
+                contentDescription = null,
+                modifier = Modifier
+                    .clip(Shapes.medium)
+                    .fillMaxWidth()
+                    .border(width = 0.1.dp, color = loginLine),
+                contentScale = ContentScale.FillBounds,
+            )
+        }
+
+        Spacer(modifier = Modifier.height(15.dp))
+        FotterPost(
+            numberLike = postModel.likeCount,
+            numberComment = postModel.commentCount,
+            state = state,
+            context = context,
+            viewModel = viewModel,
+            postModel = postModel,
+            navHostController = navHostController
         )
         Spacer(modifier = Modifier.height(15.dp))
-        FotterPost(numberLike = postModel.likeNumber, numberComment = postModel.commentNumber)
-        Spacer(modifier = Modifier.height(15.dp))
-        TextFieldSendComment(avatarUser = postModel.avatarUserPost)
+        TextFieldSendComment(avatarUser = avatarUser, viewModel, context, postID)
     }
 }
 
 @Composable
-fun HeaderPost(image: Int, nameUser: String) {
+fun HeaderPost(
+    image: Int,
+    nameUser: String,
+    timeCreate: String,
+    modifier: Modifier = Modifier,
+    avatarUser: ImageBitmap?,
+    navHostController: NavHostController? = null,
+    userID: Int = 0
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val image = painterResource(id = image)
         Image(
-            painter = image,
+            bitmap = (avatarUser ?: ImageBitmap.imageResource(id = R.drawable.avatar_null)) ,
             contentDescription = null,
             modifier = Modifier
                 .size(50.dp, 50.dp)
                 .clip(CircleShape)
+                .clickable {
+                    navHostController!!.currentBackStackEntry?.arguments?.putInt(
+                        "id", userID
+                    )
+                    Log.d("TAG", "HeaderPost: $userID")
+                    navHostController.navigate("profile")
+                }
         )
         Spacer(modifier = Modifier.width(20.dp))
-        Text(
-            text = nameUser,
-            style = nomarStyle,
-        )
+        Column {
+            Text(
+                text = nameUser,
+                style = subtitleStyle,
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = timeCreate,
+                style = textContentShadowStyle,
+            )
+        }
     }
 }
 
 @Composable
-fun FotterPost(numberLike: Int, numberComment: Int) {
+fun UserSearch(image: ImageBitmap, nameUser: String, modifier: Modifier = Modifier, navHostController: NavHostController? = null,id : Int = 0) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Image(
+            bitmap = image,
+            contentDescription = null,
+            modifier = Modifier
+                .size(60.dp, 60.dp)
+                .clip(CircleShape)
+                .clickable {
+                    navHostController!!.currentBackStackEntry?.arguments?.putInt(
+                        "id", id
+                    )
+                    navHostController!!.navigate("profile")
+                }
+        )
+        Spacer(modifier = Modifier.width(20.dp))
+        Column {
+            Text(
+                text = nameUser,
+                style = searchStyle,
+            )
+        }
+    }
+}
+
+@Composable
+fun FotterPost(
+    numberLike: Int,
+    numberComment: Int,
+    state: Boolean,
+    viewModel: HomeViewModel,
+    context: Context,
+    postModel: PostModel,
+    navHostController: NavHostController
+) {
     Row(
         modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
     ) {
-        val heartIcon = painterResource(id = R.drawable.hreart_icon)
-        Icon(
-            painter = heartIcon, contentDescription = null, Modifier.size(24.dp)
-        )
+        var likeState by remember {
+            mutableStateOf(state)
+        }
+        var likeNumber by remember {
+            mutableStateOf(numberLike)
+        }
+        val heartIconFill = painterResource(id = R.drawable.heart_icon)
+        val heartIcon = painterResource(id = R.drawable.heart)
+        if (likeState) {
+            Icon(
+                painter = heartIconFill, contentDescription = null,
+                Modifier
+                    .size(24.dp)
+                    .clickable {
+                        viewModel.handleLike(context = context, path = postModel.postId)
+                        likeState = !likeState
+                        likeNumber = likeNumber - 1
+                    }
+            )
+        } else {
+            Icon(
+                painter = heartIcon, contentDescription = null,
+                Modifier
+                    .size(24.dp)
+                    .clickable {
+                        viewModel.handleLike(context = context, path = postModel.postId)
+                        likeState = !likeState
+                        likeNumber = likeNumber + 1
+                    }
+            )
+        }
+
         Spacer(modifier = Modifier.width(5.dp))
         Text(
-            text = "$numberLike", style = MediumStyle
+            text = if (likeState) {
+                "${likeNumber} "
+            } else {
+                "${likeNumber}"
+            },
+            style = MediumStyle
         )
         Spacer(modifier = Modifier.width(20.dp))
 
         val commentIcon = painterResource(id = R.drawable.comment_icon)
         Icon(
-            painter = commentIcon, contentDescription = null, Modifier.size(24.dp)
+            painter = commentIcon,
+            contentDescription = null,
+            Modifier
+                .size(24.dp)
+                .clickable {
+                    navHostController.currentBackStackEntry?.arguments?.putParcelable(
+                        "postModel",
+                        postModel
+                    )
+                    Log.d("TAG", "FotterPost: ${postModel.postId}")
+                    navHostController.navigate("post_detail")
+                }
         )
         Spacer(modifier = Modifier.width(5.dp))
         Text(
@@ -154,7 +313,12 @@ fun FotterPost(numberLike: Int, numberComment: Int) {
 }
 
 @Composable
-fun TextFieldSendComment(avatarUser: Int) {
+fun TextFieldSendComment(
+    avatarUser: ImageBitmap?,
+    viewModel: HomeViewModel,
+    context: Context,
+    path: Int
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -162,17 +326,19 @@ fun TextFieldSendComment(avatarUser: Int) {
         verticalAlignment = Alignment.CenterVertically,
 
         ) {
-        val image = painterResource(id = avatarUser)
-        Image(
-            painter = image, contentDescription = null, Modifier.size(40.dp)
-        )
         Spacer(modifier = Modifier.width(10.dp))
-        TextFieldComment(textLabel = "Write a comment")
+        TextFieldComment(
+            textLabel = "Write a comment",
+            viewModel = viewModel,
+            context = context,
+            path = path,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
 @Composable
-fun TextFieldSendCommentInBox(avatarUser: Int) {
+fun TextFieldSendCommentInBox(avatarUser: Int, viewModel: HomeViewModel) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -186,21 +352,24 @@ fun TextFieldSendCommentInBox(avatarUser: Int) {
             painter = image, contentDescription = null, Modifier.size(40.dp)
         )
         Spacer(modifier = Modifier.width(10.dp))
-        TextFieldComment(textLabel = "Write a comment")
+        TextFieldComment(textLabel = "Write a comment", viewModel)
     }
 }
 
 
 @Composable
-fun TextFieldComment(textLabel: String) {
-    var value by remember {
-        mutableStateOf("")
-    }
-    TextField(value = value,
+fun TextFieldComment(
+    textLabel: String,
+    viewModel: HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    context: Context? = null,
+    path: Int = 0,
+    modifier: Modifier = Modifier
+) {
+    TextField(value = viewModel.comment.value,
         onValueChange = {
-            value = it
+            viewModel.updateComment(it)
         },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         textStyle = nomarStyle,
         placeholder = { Text(text = textLabel) },
         colors = TextFieldDefaults.textFieldColors(
@@ -211,68 +380,65 @@ fun TextFieldComment(textLabel: String) {
             focusedIndicatorColor = Color.Transparent,
         ),
         shape = Shapes.medium,
-        trailingIcon = { Icon(imageVector = Icons.Default.Send, contentDescription = null) })
-}
+        trailingIcon = {
+            Icon(
+                imageVector = Icons.Default.Send,
+                contentDescription = null,
+                modifier = Modifier.clickable {
+                    viewModel.uploadComment(context!!, path)
+                },
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DialogShowComment(navHostController: NavHostController) {
-    Dialog(onDismissRequest = { /*TODO*/ }) {
-        androidx.compose.material3.Scaffold(
-            Modifier
-                .fillMaxWidth(0.9f)
-                .heightIn(min = 300.dp, max = 400.dp)
-                .padding(vertical = 40.dp, horizontal = 15.dp),
-            content = {
-                ListComment(navHostController)
-            },
-            bottomBar = {
-                TextFieldSendCommentInBox(avatarUser = R.drawable.avatar_user)
-            })
-    }
+                )
+        })
 }
 
 @Composable
-fun ListComment(navHostController: NavHostController) {
+fun ListComment(
+    navHostController: NavHostController,
+    listComment: List<CommentModel>,
+    modifier: Modifier = Modifier
+) {
     LazyColumn(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(start = 10.dp, end = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        items(3) {
-            ContentComment(navHostController)
+        items(listComment) {
+            ContentComment(navHostController, it)
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
 
 @Composable
-fun ContentComment(navHostController: NavHostController) {
+fun ContentComment(navHostController: NavHostController, commentModel: CommentModel) {
+    var avatar: ImageBitmap? = commentModel.let {
+        it.avatar?.let { it1 ->
+            commentModel.avatar?.let { it2 -> convertBase64ToImageBitmap(it2) }
+        }
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
     ) {
-        IconCustom(icon = R.drawable.avatar_user,"profile", navHostController )
+        if (avatar != null) {
+            IconAvatar(avatar, "profile", navHostController)
+        }
         Spacer(modifier = Modifier.width(20.dp))
         Column(
             modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = "Hello Huy",
+                text = commentModel.userName,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 style = nomarStyle
             )
             Spacer(modifier = Modifier.height(5.dp))
             Text(
-                text = "24h", style = textContentShadowStyle
+                text = commentModel.content, style = textContentShadowStyle
             )
         }
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun PreviewHome() {
-    HomeScreen()
 }

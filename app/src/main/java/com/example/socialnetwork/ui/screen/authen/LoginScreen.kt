@@ -1,50 +1,67 @@
 package com.example.socialnetwork.ui.screen
 
-import android.util.Log
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.Icon
-import androidx.compose.material.OutlinedTextField
+import androidx.compose.foundation.onFocusedBoundsChanged
 import androidx.compose.material.Text
-import androidx.compose.material.TextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusTarget
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import com.example.socialnetwork.R
 import com.example.socialnetwork.ui.component.*
-import com.example.socialnetwork.ui.theme.gradientStyle
-import com.example.socialnetwork.ui.theme.loginBackgroundGradient
-import com.example.socialnetwork.ui.theme.nomarStyle
-import kotlin.math.log
+import com.example.socialnetwork.ui.theme.*
+import com.example.socialnetwork.view_model.AuthenViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 @Composable
-fun LoginScreen(navHostController: NavHostController) {
+fun LoginScreen(
+    navHostController: NavHostController,
+    loginViewModel: AuthenViewModel = viewModel()
+) {
+    var context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(top = 70.dp, start = 25.dp, end = 25.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+
+        var stateError by remember {
+            mutableStateOf(false)
+        }
+
+
         loginLogoComponent()
         Text(
             modifier = Modifier.padding(top = 25.dp),
             text = "Log in to make your memories",
             style = nomarStyle
         )
-        textFieldLoginComponent("Email or your phone")
-        var valuePassword by remember {
-            mutableStateOf("")
-        }
-        textFieldPassword(value = valuePassword, textLabel = "Password") {
-             valuePassword = it
+            textFieldLoginComponent(
+                textLabel = "Email or your phone",
+                text = loginViewModel.email.value,
+                isError = stateError,
+            ) {
+                loginViewModel.updateEmail(it)
+                stateError = false
+            }
+
+        textFieldPassword(
+            value = loginViewModel.password.value,
+            textLabel = "Password",
+            isError = stateError,
+        ) {
+            loginViewModel.updatePassword(it)
+            stateError = false
         }
         Text(
             modifier = Modifier
@@ -56,20 +73,30 @@ fun LoginScreen(navHostController: NavHostController) {
             text = "Forgot Password?",
             style = gradientStyle,
 
-        )
+            )
         btnLoginComponent(
             backgroundCorlor = loginBackgroundGradient,
-            textContent = "Log in",
-            onClick ={ handleLoginBtn(navHostController) }
+            textContent = "Login",
+            onClick = {
+                GlobalScope.launch(Dispatchers.Main) {
+                    var reponseModel = loginViewModel.login(context)
+                    if(reponseModel.status.equals("Success")){
+                        navHostController.navigate("home")
+                    }
+                    else{
+                        stateError = true
+                    }
+                }
+            }
         )
         Box(modifier = Modifier.size(20.dp))
-        textAnnotate(textHighLight = "Sign up", textNomar = "Dont have an account? ", onClick = {handleSignupText(navHostController)})
+        textAnnotate(
+            textHighLight = "Sign up",
+            textNomar = "Don't have an account? ",
+            onClick = { handleSignupText(navHostController) })
     }
 }
-
-fun handleSignupText(navHostController : NavHostController){
+fun handleSignupText(navHostController: NavHostController) {
     navHostController.navigate("signup")
 }
-fun handleLoginBtn(navHostController: NavHostController){
-    navHostController.navigate("home")
-}
+

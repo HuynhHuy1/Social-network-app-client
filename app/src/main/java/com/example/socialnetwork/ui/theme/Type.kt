@@ -27,6 +27,20 @@ val buttonStyleWhite= TextStyle(
     fontWeight = FontWeight.W600,
     color = Color.White
 )
+val subtitleStyle = TextStyle(
+    fontFamily = FontFamily.SansSerif,
+    fontSize = 16.sp,
+    fontWeight = FontWeight.W600,
+    color = Color.Black
+)
+
+val searchStyle = TextStyle(
+    fontFamily = FontFamily.SansSerif,
+    fontSize = 20.sp,
+    fontWeight = FontWeight.W600,
+    color = Color.Black
+)
+
 
 val gradientStyle = TextStyle(
     fontFamily = FontFamily.SansSerif,

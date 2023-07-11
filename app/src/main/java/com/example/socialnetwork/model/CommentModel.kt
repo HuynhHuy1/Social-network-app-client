@@ -4,7 +4,9 @@ import androidx.annotation.DrawableRes
 import com.example.socialnetwork.R
 
 data class CommentModel(
-    @DrawableRes val avatarUser: Int = R.drawable.avatar_null,
+    val id : Int = 0,
+    val postId : Int = 0,
+    val userId : Int = 0,
+    val userName : String = "",
     val content: String = "",
-    val timeCreate : String,
-)
+    val avatar : String? = null)
